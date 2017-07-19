@@ -8,10 +8,11 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-OPTFLAGS := -O3 -flto -fomit-frame-pointer -fstrict-aliasing -march=native -mtune=native -msse4.2
+LTOFLAGS := -flto -fno-fat-lto-objects -fuse-linker-plugin
+OPTFLAGS := -O3 -fomit-frame-pointer -fstrict-aliasing -march=native -mtune=native -msse4.2
 DEVFLAGS := -Wno-unused-parameter -Wno-unused-variable
 EXTRA_WARNINGS := -Wextra -Wshadow -Wuninitialized -Wno-missing-field-initializers
-CFLAGS?=-std=c99 -g -Wall $(OPTFLAGS) $(EXTRA_WARNINGS) -fstack-protector -Wno-error -fvisibility=hidden -D_GNU_SOURCE
+CFLAGS?=-std=c99 -Wall $(OPTFLAGS) $(EXTRA_WARNINGS) -fstack-protector -Wno-error -fvisibility=hidden -D_GNU_SOURCE
 
 MODULE_SRCS := $(wildcard e*.c)
 MODULE_OBJS := $(MODULE_SRCS:.c=.o)
@@ -23,16 +24,22 @@ TEST_MODULES := $(patsubst e%,%, $(MODULE_NAMES))
 BACKUP_FILENAME:=$(TMP)/$(PROJECT)-backup-`date +"%Y-%m-%d"`.tar.xz
 BACKUP_DIR=/mnt/media2015/backup/
 
-ifndef NODEBUG
-	CFLAGS+=-DDEBUG $(DEVFLAGS)
-endif
-
 ifdef PROFILEGEN
 	CFLAGS+=-fprofile-generate
 endif
 
 ifdef PROFILEUSE
 	CFLAGS+=-fprofile-use
+endif
+
+ifdef LTO
+	CFLAGS+=${LTOFLAGS}
+else
+	CFLAGS+=-g
+endif
+
+ifndef NODEBUG
+	CFLAGS+=-DDEBUG $(DEVFLAGS)
 endif
 
 ifdef GCOV
@@ -49,12 +56,12 @@ all: cbst pma_test
 
 opt: clean
 	@echo -e ${YELLOW}Building with profile generation...${NC}
-	@PROFILEGEN=on make test
+	@LTO=1 PROFILEGEN=on make test
 	@sha256sum pma_test
 	@echo -e ${YELLOW}Removing old binaries${NC}
 	@rm pma_test pma.o
 	@echo -e ${YELLOW}Recompiling using profile data...${NC}
-	PROFILEUSE=on make pma_test
+	@LTO=1 PROFILEUSE=on make pma_test
 	@sha256sum pma_test
 
 test: pma_test
