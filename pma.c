@@ -51,6 +51,10 @@ inline size_t pma_page_avail(const struct pma_policy *pol, struct pma_page *p) {
 	return pol->region_size - p->offset;
 }
 
+inline size_t pma_page_header_size(const struct pma_policy *pol) {
+	return sizeof(struct pma_page); // + pol->aux_size;
+}
+
 inline size_t pma_max_allocation_size(const struct pma_policy *pol) {
 	return pol->region_size - ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_sub1);
 }
@@ -74,14 +78,6 @@ void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, uint32_t size
 	if (!*p || (pma_page_avail(pol, *p) < size && (p = &(*p)->next))) {
 		*p = pma_new_page(pol);
 	}
-#if 0
-	if (!*p) {
-		*p = pma_new_page(pol);
-	} else if (pma_page_avail(pol, *p) < size) {
-		(*p)->next = pma_new_page(pol);
-		*p = (*p)->next;
-	}
-#endif
 
 	return pma_alloc_onpage(pol, *p, size);
 }
@@ -110,8 +106,8 @@ void pma_debug_dump(const struct pma_policy *pol, struct pma_page *p, const char
 		asprintf(&fn, "%s-p%04d.bin", basename, page);
 		FILE* f = fopen(fn, "w");
 		if (f) {
-			printf("Writing page @ %p to %s\n", p, fn);
-			fwrite(p, pol->region_size, 1, f);
+			printf("Writing page @ %p to %s (%d bytes)\n", p, fn, p->offset);
+			fwrite(p, p->offset, 1, f);
 			fclose(f);
 		}
 		free(fn);

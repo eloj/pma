@@ -68,12 +68,17 @@ int main(int argc, char *argv[]) {
 	struct pma_page *root = mem;
 
 	printf("First page at %p\n", root);
+	printf("Page header is %zu bytes, %zu bytes available (%zu bytes slack). Max allocation size is %zu bytes.\n",
+		pma_page_header_size(&pol),
+		pma_page_avail(&pol, mem),
+		pol.region_size - pma_page_avail(&pol, mem) - pma_page_header_size(&pol),
+		pma_max_allocation_size(&pol)
+	);
 
 #define alloc_test(pol, page, len, c) { \
 	void *opage = *page; \
 	char *a = pma_alloc((pol), (page), (len)); \
 	memset((a), (c), (len)); \
-	printf("Data at %p='%.*s', page offset %zu\n", a, len > 128 ? 128 : (int)len, a, (uintptr_t)a - (uintptr_t)*page); \
 }
 
 	alloc_test(&pol, &mem, 64, 'a');
@@ -85,7 +90,6 @@ int main(int argc, char *argv[]) {
 	alloc_test(&pol, &mem, 3, '3');
 	alloc_test(&pol, &mem, 4, '4');
 	alloc_test(&pol, &mem, pma_max_allocation_size(&pol), 'z');
-	printf("Max allocation size is %zu bytes.\n", pma_max_allocation_size(&pol));
 
 	pma_debug_dump(&pol, root, "test");
 
