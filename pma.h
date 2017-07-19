@@ -46,11 +46,12 @@ int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_a
 void pma_free(const struct pma_policy *pol, struct pma_page *p);
 
 size_t pma_page_avail(const struct pma_policy *pol, struct pma_page *p);
+size_t pma_page_header_size(const struct pma_policy *pol) __attribute__((pure));
 size_t pma_max_allocation_size(const struct pma_policy *pol) __attribute__((pure));
 
 struct pma_page *pma_new_page(const struct pma_policy *pol);
-void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, uint32_t size) __attribute__((malloc));
-void *pma_alloc_onpage(const struct pma_policy *r, struct pma_page *p, uint32_t size) __attribute__((malloc));
+void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, uint32_t size) __attribute__((alloc_size(3)));
+void *pma_alloc_onpage(const struct pma_policy *r, struct pma_page *p, uint32_t size) __attribute__((malloc, alloc_size(3)));
 
 void pma_debug_dump(const struct pma_policy *pol, struct pma_page *p, const char *basename);
 
