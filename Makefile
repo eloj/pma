@@ -2,6 +2,12 @@ PROJECT := cbst
 TMP?=/tmp
 CC?=gcc
 
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 OPTFLAGS := -O3 -flto -fomit-frame-pointer -fstrict-aliasing -march=native -mtune=native -msse4.2
 DEVFLAGS := -Wno-unused-parameter -Wno-unused-variable
 EXTRA_WARNINGS := -Wextra -Wshadow -Wuninitialized -Wno-missing-field-initializers
@@ -21,6 +27,14 @@ ifndef NODEBUG
 	CFLAGS+=-DDEBUG $(DEVFLAGS)
 endif
 
+ifdef PROFILEGEN
+	CFLAGS+=-fprofile-generate
+endif
+
+ifdef PROFILEUSE
+	CFLAGS+=-fprofile-use
+endif
+
 ifdef GCOV
 	CFLAGS+=-fprofile-arcs -ftest-coverage
 endif
@@ -32,6 +46,16 @@ endif
 .PHONY: clean coverage strip test
 
 all: cbst pma_test
+
+opt: clean
+	@echo -e ${YELLOW}Building with profile generation...${NC}
+	@PROFILEGEN=on make test
+	@sha256sum pma_test
+	@echo -e ${YELLOW}Removing old binaries${NC}
+	@rm pma_test pma.o
+	@echo -e ${YELLOW}Recompiling using profile data...${NC}
+	PROFILEUSE=on make pma_test
+	@sha256sum pma_test
 
 test: pma_test
 	${TEST_PREFIX} ./pma_test
