@@ -77,6 +77,15 @@ cbst: cbst.c pma.o
 pma_test: pma_test.c pma.o
 	$(CC) $(CFLAGS) $< -o $@ $(filter %.o, $^)
 
+perf-cpu: pma_test
+	perf stat -d ./pma_test
+
+perf-tlb: pma_test
+	perf stat -e dTLB-loads,dTLB-load-misses,dTLB-prefetch-misses ./pma_test
+
+perf-llc: pma_test
+	perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-prefetches ./pma_test
+
 backup: clean
 	@cd .. && tar -cJ --exclude=.git -f ${BACKUP_FILENAME} $(notdir $(CURDIR))
 	@if [ $$? -eq 0 ]; then \
@@ -88,5 +97,5 @@ strip:
 	strip $(TEST_EXES)
 
 clean:
-	rm -f $(TEST_EXES) $(MODULE_OBJS) *.o vgcore* core core.* *.gcno *.gcna *.gcda *.c.gcov
+	rm -f $(TEST_EXES) $(MODULE_OBJS) *.o vgcore* core core.* *.gcno *.gcna *.gcda *.c.gcov perf.data*
 
