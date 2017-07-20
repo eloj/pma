@@ -23,7 +23,8 @@ struct pma_page {
 
 int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_alignment) {
 	pol->region_size = region_size;
-	pol->alignment_sub1 = (1L << pow2_alignment) - 1;
+	pol->alignment = pow2_alignment;
+	pol->alignment_mask = (1L << pow2_alignment) - 1;
 	pol->malloc = calloc_wrapped;
 	pol->free = free_wrapped;
 	pol->cb_data = NULL;
@@ -38,8 +39,8 @@ void pma_free(const struct pma_policy *pol, struct pma_page *p) {
 #endif
 		pol->free(p, pol->cb_data);
 #ifdef __VALGRIND_MAJOR__
-		// printf("FREE pool @ %p, mem @ %p\n", p,  p + ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_sub1));
-		// VALGRIND_MEMPOOL_FREE(p, p + ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_sub1));
+		// printf("FREE pool @ %p, mem @ %p\n", p,  p + ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_mask));
+		// VALGRIND_MEMPOOL_FREE(p, p + ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_mask));
 		// VALGRIND_DESTROY_MEMPOOL(p);
 #endif
 		p = next;
@@ -55,8 +56,17 @@ inline size_t pma_page_header_size(const struct pma_policy *pol) {
 	return sizeof(struct pma_page); // + pol->aux_size;
 }
 
+inline size_t pma_page_max_objects(const struct pma_policy *pol, size_t size) {
+	// TODO: calculate maximum number of size objs to fit into a page, /w accounting for alignment.
+	// actual size of object is ALIGN_ADDR_PRESUB(size, pol->alignment_mask);
+	// divide pma_max_allocation_size() by aligned object size
+	size_t objs_size = ALIGN_ADDR_PRESUB(size, pol->alignment_mask);
+	size_t objs = pma_max_allocation_size(pol) / objs_size;
+	return objs;
+}
+
 inline size_t pma_max_allocation_size(const struct pma_policy *pol) {
-	return pol->region_size - ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_sub1);
+	return pol->region_size - ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
 }
 
 struct pma_page *pma_new_page(const struct pma_policy *pol) {
@@ -66,7 +76,7 @@ struct pma_page *pma_new_page(const struct pma_policy *pol) {
 		printf("Allocated new %d page @ %p\n", pol->region_size, np);
 #endif
 		np->next = NULL;
-		np->offset = ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_sub1);
+		np->offset = ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_mask);
 	}
 	return np;
 }
@@ -90,7 +100,7 @@ void *pma_alloc_onpage(const struct pma_policy *pol, struct pma_page *p, uint32_
 	printf("Sub-allocating %d bytes starting at offset %d of page @ %p\n", size, p->offset, p);
 #endif
 	void *retval = ((char*)p) + p->offset;
-	p->offset = ALIGN_ADDR_PRESUB(p->offset + size, pol->alignment_sub1);
+	p->offset = ALIGN_ADDR_PRESUB(p->offset + size, pol->alignment_mask);
 #ifdef __VALGRIND_MAJOR__
 	// VALGRIND_MALLOCLIKE_BLOCK(retval, size, 0, 0);
 	// VALGRIND_MEMPOOL_ALLOC(p, retval, size);

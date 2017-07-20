@@ -13,10 +13,8 @@
 		Applications can use page ptr + alignment + offsets to reduce pointer waste.
 
 	TODO:
-		* Add macro/function to go to/from 'compressed address' based on page ptr + policy (alignment) + raw ptr
 		* Allow nesting (a pma allocator on top of a pma_allocator with a different configuration)
-		* Add valgrind macros if needed (check!)
-		* Add attributes to functions, such as 'pure'
+		* Add valgrind macros as needed (check!)
 
 */
 #include <stdint.h>
@@ -35,11 +33,12 @@ struct pma_page;
 
 struct pma_policy {
 	uint32_t region_size;
-	uint32_t alignment_sub1;
+	uint16_t alignment;
+	uint16_t alignment_mask;
 	// uint32_t aux_size; /* XXX: size of auxillary base allocator in-page data */
-	void* cb_data;
 	void* (*malloc)(size_t size, void *cb_data);
 	void  (*free)(void *ptr, void *cb_data);
+	void* cb_data;
 };
 
 int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_alignment);
@@ -47,6 +46,7 @@ void pma_free(const struct pma_policy *pol, struct pma_page *p);
 
 size_t pma_page_avail(const struct pma_policy *pol, struct pma_page *p);
 size_t pma_page_header_size(const struct pma_policy *pol) __attribute__((pure));
+size_t pma_page_max_objects(const struct pma_policy *pol, size_t size) __attribute__((pure));
 size_t pma_max_allocation_size(const struct pma_policy *pol) __attribute__((pure));
 
 struct pma_page *pma_new_page(const struct pma_policy *pol);

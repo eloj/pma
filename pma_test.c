@@ -42,14 +42,29 @@ void mmap_free(void *ptr, void *cb_data) {
 	munmap(ptr, data->alloc_len);
 }
 
+#define ALIGN_ADDR_PRESUB(addr,align) (((addr)+(align)) & ~((uintptr_t)align)) /* align is pow2-1 */
+
+uint16_t encode16(const struct pma_policy *pol, const struct pma_page *page, void *ptr) {
+	uintptr_t diff = (uintptr_t)ptr - (uintptr_t)page - ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
+	return diff >> pol->alignment;
+}
+
+void *decode16(const struct pma_policy *pol, const struct pma_page *page, uint16_t offset) {
+	uintptr_t ptr = (uintptr_t)page + ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
+	return (void*)(ptr + ((uintptr_t)offset << pol->alignment));
+}
+
 int main(int argc, char *argv[]) {
 	size_t page_size = sysconf(_SC_PAGE_SIZE);
+	int alignment = argc > 1 ? atoi(argv[1]) : 4;
+
+	printf("arg1 alignment=%d\n", alignment);
 
 	// page_size = 2048*1024;
 	printf("HW page size=%zu\n", page_size);
 
 	struct pma_policy pol;
-	if (pma_init_policy(&pol, page_size, 4) != 0) {
+	if (pma_init_policy(&pol, page_size, alignment) != 0) {
 		return 1;
 	}
 
@@ -77,10 +92,36 @@ int main(int argc, char *argv[]) {
 
 #define alloc_test(pol, page, len, c) { \
 	void *opage = *page; \
-	char *a = pma_alloc((pol), (page), (len)); \
-	memset((a), (c), (len)); \
+	char *a__ = pma_alloc((pol), (page), (len)); \
+	memset((a__), (c), (len)); \
 }
 
+	printf("MAX 1 byte objs = %zu\n", pma_page_max_objects(&pol, 1));
+	printf("MAX 8 byte objs = %zu\n", pma_page_max_objects(&pol, 8));
+	printf("MAX 16 byte objs = %zu\n", pma_page_max_objects(&pol, 16));
+	printf("MAX 64 byte objs = %zu\n", pma_page_max_objects(&pol, 64));
+	printf("MAX 128 byte objs = %zu\n", pma_page_max_objects(&pol, 128));
+	printf("MAX %zu byte objs = %zu\n", pma_max_allocation_size(&pol), pma_page_max_objects(&pol, pma_max_allocation_size(&pol)));
+	printf("MAX %zu byte objs = %zu\n", pma_max_allocation_size(&pol) + 1, pma_page_max_objects(&pol, pma_max_allocation_size(&pol) + 1));
+
+	int idx = 0;
+	uint16_t arr[128];
+
+	char *a = pma_alloc(&pol, &mem, 51);
+	*a = 'A';
+	arr[idx++] = encode16(&pol, mem, a);
+	a = pma_alloc(&pol, &mem, 123);
+	*a = 'B';
+	arr[idx++] = encode16(&pol, mem, a);
+	a = pma_alloc(&pol, &mem, 1);
+	*a = 'C';
+	arr[idx++] = encode16(&pol, mem, a);
+
+	for (int i=0 ; i < idx ; ++i) {
+		printf("%d @[%06d] = '%s'\n", i, arr[i], (char*)decode16(&pol, mem, arr[i]));
+	}
+
+#if 0
 	alloc_test(&pol, &mem, 64, 'a');
 	alloc_test(&pol, &mem, 32, 'b');
 	alloc_test(&pol, &mem, 15, 'c');
@@ -92,6 +133,7 @@ int main(int argc, char *argv[]) {
 	alloc_test(&pol, &mem, pma_max_allocation_size(&pol), 'z');
 
 	pma_debug_dump(&pol, root, "test");
+#endif
 
 #if 0
 	printf("Press enter to free.");
