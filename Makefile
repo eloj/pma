@@ -26,16 +26,22 @@ BACKUP_DIR=/mnt/media2015/backup/
 
 ifdef PROFILEGEN
 	CFLAGS+=-fprofile-generate
+	NODEBUG=y
 endif
 
 ifdef PROFILEUSE
 	CFLAGS+=-fprofile-use
+	NODEBUG=y
 endif
 
 ifdef LTO
 	CFLAGS+=${LTOFLAGS}
 else
 	CFLAGS+=-g
+endif
+
+ifndef NOVALGRIND
+	CFLAGS+=-DUSE_VALGRIND
 endif
 
 ifndef NODEBUG

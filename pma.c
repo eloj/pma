@@ -3,7 +3,14 @@
 #include <stdlib.h>
 #include <assert.h>
 
-//#include <valgrind/valgrind.h>
+#ifdef DEBUG
+// The Valgrind markup is not useful when allocations are backed by anything Valgrind already tracks,
+// such as standard heap allocations, but should be used in other cases, such as when the backing is mmap'ed.
+// If you're using both, know that standard heap allocations will be double-counted.
+#ifdef USE_VALGRIND
+#include <valgrind/memcheck.h>
+#endif
+#endif
 
 #include "pma.h"
 
@@ -32,12 +39,30 @@ int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_a
 }
 
 void pma_free(const struct pma_policy *pol, struct pma_page *p) {
+	if (!p)
+		return;
+
+	// No free-function, then nothing to do.
+	if (!pol->free) {
+#ifdef DEBUG
+		printf("Requested freeing of page @ %p, but no pol->free defined.\n", p);
+#endif
+#ifdef __VALGRIND_MAJOR__
+		VALGRIND_MEMPOOL_FREE(p, p);
+		VALGRIND_DESTROY_MEMPOOL(p);
+#endif
+		return;
+	}
 	while (p) {
 		struct pma_page *next = p->next;
 #ifdef DEBUG
 		printf("Freeing %d page (%d used/%d free) @ %p (.next=%p)\n", pol->region_size, p->offset, pol->region_size - p->offset, p, next);
 #endif
 		pol->free(p, pol->cb_data);
+#ifdef __VALGRIND_MAJOR__
+		VALGRIND_MEMPOOL_FREE(p, p);
+		VALGRIND_DESTROY_MEMPOOL(p);
+#endif
 		p = next;
 	}
 }
@@ -72,20 +97,26 @@ void *pma_page_decode_offset(const struct pma_policy *pol, const struct pma_page
 
 struct pma_page *pma_new_page(const struct pma_policy *pol) {
 	assert(pol != NULL);
-	struct pma_page* np = pol->malloc(pol->region_size, pol->cb_data);
+	struct pma_page *np = pol->malloc(pol->region_size, pol->cb_data);
 	if (np) {
 #ifdef DEBUG
 		printf("Allocated new %d byte page @ %p\n", pol->region_size, np);
 #endif
 		np->next = NULL;
 		np->offset = ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
+#ifdef __VALGRIND_MAJOR__
+		VALGRIND_CREATE_MEMPOOL_EXT(np, 0, 0 /* is zeroed */, VALGRIND_MEMPOOL_METAPOOL | VALGRIND_MEMPOOL_AUTO_FREE);
+		VALGRIND_MEMPOOL_ALLOC(np, np, pol->region_size);
+		VALGRIND_MAKE_MEM_NOACCESS(np, sizeof(struct pma_page));
+		VALGRIND_MAKE_MEM_DEFINED(np, pma_page_header_size(pol));
+#endif
 	}
 	return np;
 }
 
 void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, uint32_t size) {
-	// Make sure we can even fit size onto a new page if necessary.
 	assert(pol != NULL);
+	// Make sure we can even fit size onto a new page if necessary.
 	assert(size <= pma_max_allocation_size(pol));
 
 	if (!*p || (pma_page_avail(pol, *p) < size && (p = &(*p)->next))) {
@@ -103,11 +134,23 @@ void *pma_alloc_onpage(const struct pma_policy *pol, struct pma_page *p, uint32_
 	// Make sure we can fit size into this page.
 	assert(pol->region_size - p->offset >= size);
 
-#ifdef DEBUG
-	printf("Sub-allocating %d bytes starting at offset %d of page @ %p\n", size, p->offset, p);
+	void *retval = NULL;
+	if (pol->region_size - p->offset >= size) {
+		#ifdef DEBUG
+			printf("Sub-allocating %d bytes starting at offset %d of page @ %p\n", size, p->offset, p);
+		#endif
+		retval = ((char*)p) + p->offset;
+		p->offset = ALIGN_ADDR_PRESUB(p->offset + size, pol->alignment_mask);
+#ifdef __VALGRIND_MAJOR__
+		if (size)
+			VALGRIND_MALLOCLIKE_BLOCK(retval, size, 0, 0 /* is_zeroed */);
 #endif
-	void *retval = ((char*)p) + p->offset;
-	p->offset = ALIGN_ADDR_PRESUB(p->offset + size, pol->alignment_mask);
+	}
+	#ifdef DEBUG
+	else {
+		printf("Sub-allocation of %d bytes too large to fit a page.\n", size);
+	}
+	#endif
 	return retval;
 }
 
@@ -117,7 +160,7 @@ void pma_debug_dump(const struct pma_policy *pol, struct pma_page *p, const char
 	int page = 0;
 	while (p) {
 		asprintf(&fn, "%s-p%04d.bin", basename, page);
-		FILE* f = fopen(fn, "w");
+		FILE *f = fopen(fn, "w");
 		if (f) {
 			printf("Writing page @ %p to %s (%d bytes)\n", p, fn, p->offset);
 			fwrite(p, p->offset, 1, f);

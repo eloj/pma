@@ -14,6 +14,7 @@
 		Handle alignment for you.
 
 	TODO:
+		* policy flag to know is returned memory is initialized or not.
 		* Allow nesting (a pma allocator on top of a pma_allocator with a different configuration)
 		* How to handle NULL in indexed encoding (pre-add 1 to offsets returned to free up 0, or just leave it to application)
 		* Add valgrind macros as needed (check!)
