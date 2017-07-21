@@ -58,9 +58,9 @@ size_t pma_max_allocation_size(const struct pma_policy *pol) __attribute__((pure
 uint32_t pma_page_encode_offset(const struct pma_policy *pol, const struct pma_page *page, void *ptr);
 void *pma_page_decode_offset(const struct pma_policy *pol, const struct pma_page *page, uint32_t offset);
 
-struct pma_page *pma_new_page(const struct pma_policy *pol);
-void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, uint32_t size) __attribute__((alloc_size(3)));
-void *pma_alloc_onpage(const struct pma_policy *r, struct pma_page *p, uint32_t size) __attribute__((malloc, alloc_size(3)));
+void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, size_t size) __attribute__((alloc_size(3)));
+void *pma_push_string(const struct pma_policy *pol, struct pma_page **p, const char *str, ssize_t len);
+void *pma_push_struct(const struct pma_policy *pol, struct pma_page **p, void *mem, size_t len);
 
 void pma_debug_dump(const struct pma_policy *pol, struct pma_page *p, const char *basename);
 

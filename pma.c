@@ -14,6 +14,9 @@
 
 #include "pma.h"
 
+struct pma_page *pma_new_page(const struct pma_policy *pol);
+void *pma_alloc_onpage(const struct pma_policy *r, struct pma_page *p, uint32_t size) __attribute__((malloc, alloc_size(3)));
+
 // #define ALIGN_ADDR(addr,align) (((addr)+(align-1)) & ~(align-1))
 #define ALIGN_ADDR_PRESUB(addr,align) (((addr)+(align)) & ~((uintptr_t)align)) /* align is pow2-1 */
 // #define ALIGN_ADDR_PRESUB_OFFSET(addr, align, k) ((addr)+(((uintptr_t)(k) - (addr)) & (uintptr_t)(align)))
@@ -115,20 +118,6 @@ struct pma_page *pma_new_page(const struct pma_policy *pol) {
 	return np;
 }
 
-void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, uint32_t size) {
-	assert(pol != NULL);
-	// Make sure we can even fit size onto a new page if necessary.
-	assert(size <= pma_max_allocation_size(pol));
-
-	if (!*p || (pma_page_avail(pol, *p) < size && (p = &(*p)->next))) {
-		*p = pma_new_page(pol);
-		if (!*p)
-			return NULL;
-	}
-
-	return pma_alloc_onpage(pol, *p, size);
-}
-
 void *pma_alloc_onpage(const struct pma_policy *pol, struct pma_page *p, uint32_t size) {
 	assert(pol != NULL);
 	assert(p != NULL);
@@ -155,6 +144,37 @@ void *pma_alloc_onpage(const struct pma_policy *pol, struct pma_page *p, uint32_
 	return retval;
 }
 
+void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, size_t size) {
+	assert(pol != NULL);
+	// Make sure we can even fit size onto a new page if necessary.
+	assert(size <= pma_max_allocation_size(pol));
+
+	if (!*p || (pma_page_avail(pol, *p) < size && (p = &(*p)->next))) {
+		*p = pma_new_page(pol);
+		if (!*p)
+			return NULL;
+	}
+
+	return pma_alloc_onpage(pol, *p, size);
+}
+
+void *pma_push_string(const struct pma_policy *pol, struct pma_page **p, const char *str, ssize_t len) {
+	if (len < 0)
+		len = strlen(str);
+	char *s = pma_alloc(pol, p, len + 1);
+	if (s) {
+		memcpy(s, str, len);
+		s[len] = 0;
+	}
+
+	return s;
+}
+
+void *pma_push_struct(const struct pma_policy *pol, struct pma_page **p, void *mem, size_t len) {
+	void *dest = pma_alloc(pol, p, len);
+	memcpy(dest, mem, len);
+	return dest;
+}
 
 void pma_debug_dump(const struct pma_policy *pol, struct pma_page *p, const char *basename) {
 	char *fn;
