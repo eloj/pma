@@ -14,11 +14,9 @@
 		Handle alignment for you.
 
 	TODO:
-		* policy flag to know is returned memory is initialized or not.
 		* Allow nesting (a pma allocator on top of a pma_allocator with a different configuration)
 		* How to handle NULL in indexed encoding (pre-add 1 to offsets returned to free up 0, or just leave it to application)
-		* Add valgrind macros as needed (check!)
-
+		* Can VALGRIND client macros be moved into allocator cb's and still work well?
 */
 #include <stdint.h>
 
@@ -34,10 +32,15 @@
 
 struct pma_page;
 
+enum pma_flags {
+	PMA_ALLOC_INITIALIZED = 1
+};
+
 struct pma_policy {
 	uint32_t region_size;
 	uint16_t alignment;
 	uint16_t alignment_mask;
+	enum pma_flags flags;
 	// uint32_t aux_size; /* XXX: size of auxillary base allocator in-page data */
 	void* (*malloc)(size_t size, void *cb_data);
 	void  (*free)(void *ptr, void *cb_data);

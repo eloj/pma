@@ -34,6 +34,7 @@ int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_a
 	pol->alignment_mask = (1L << pow2_alignment) - 1;
 	pol->malloc = calloc_wrapped;
 	pol->free = free_wrapped;
+	pol->flags = PMA_ALLOC_INITIALIZED;
 	pol->cb_data = NULL;
 	return 0;
 }
@@ -105,7 +106,7 @@ struct pma_page *pma_new_page(const struct pma_policy *pol) {
 		np->next = NULL;
 		np->offset = ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
 #ifdef __VALGRIND_MAJOR__
-		VALGRIND_CREATE_MEMPOOL_EXT(np, 0, 0 /* is zeroed */, VALGRIND_MEMPOOL_METAPOOL | VALGRIND_MEMPOOL_AUTO_FREE);
+		VALGRIND_CREATE_MEMPOOL_EXT(np, 0, pol->flags & PMA_ALLOC_INITIALIZED, VALGRIND_MEMPOOL_METAPOOL | VALGRIND_MEMPOOL_AUTO_FREE);
 		VALGRIND_MEMPOOL_ALLOC(np, np, pol->region_size);
 		VALGRIND_MAKE_MEM_NOACCESS(np, sizeof(struct pma_page));
 		VALGRIND_MAKE_MEM_DEFINED(np, pma_page_header_size(pol));
@@ -143,7 +144,7 @@ void *pma_alloc_onpage(const struct pma_policy *pol, struct pma_page *p, uint32_
 		p->offset = ALIGN_ADDR_PRESUB(p->offset + size, pol->alignment_mask);
 #ifdef __VALGRIND_MAJOR__
 		if (size)
-			VALGRIND_MALLOCLIKE_BLOCK(retval, size, 0, 0 /* is_zeroed */);
+			VALGRIND_MALLOCLIKE_BLOCK(retval, size, 0, pol->flags & PMA_ALLOC_INITIALIZED);
 #endif
 	}
 	#ifdef DEBUG
