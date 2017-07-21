@@ -1,4 +1,4 @@
-PROJECT := cbst
+PROJECT := pma
 TMP?=/tmp
 CC?=gcc
 
@@ -17,7 +17,7 @@ CFLAGS?=-std=c99 -Wall $(OPTFLAGS) $(EXTRA_WARNINGS) -fstack-protector -Wno-erro
 MODULE_SRCS := $(wildcard e*.c)
 MODULE_OBJS := $(MODULE_SRCS:.c=.o)
 MODULE_NAMES := $(MODULE_SRCS:.c=)
-TEST_SRCS := cbst.c pma_test.c
+TEST_SRCS := pma_test.c
 TEST_EXES := $(TEST_SRCS:.c=)
 TEST_MODULES := $(patsubst e%,%, $(MODULE_NAMES))
 
@@ -58,7 +58,7 @@ endif
 
 .PHONY: clean coverage strip test
 
-all: cbst pma_test
+all: pma_test
 
 opt: clean
 	@echo -e ${YELLOW}Building with profile generation...${NC}
@@ -76,9 +76,6 @@ test: pma_test
 	@dd ibs=1 skip=16 if=test-p0001.bin status=none | sha256sum
 
 pma.o: pma.c pma.h
-
-cbst: cbst.c pma.o
-	$(CC) $(CFLAGS) $< -o $@ $(filter %.o, $^)
 
 pma_test: pma_test.c pma.o
 	$(CC) $(CFLAGS) $< -o $@ $(filter %.o, $^)
