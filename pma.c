@@ -32,7 +32,7 @@ int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_a
 	pol->region_size = region_size;
 	pol->alignment = pow2_alignment;
 	pol->alignment_mask = (1L << pow2_alignment) - 1;
-	pol->malloc = calloc_wrapped;
+	pol->alloc = calloc_wrapped;
 	pol->free = free_wrapped;
 	pol->flags = PMA_ALLOC_INITIALIZED;
 	pol->cb_data = NULL;
@@ -98,7 +98,7 @@ void *pma_page_decode_offset(const struct pma_policy *pol, const struct pma_page
 
 struct pma_page *pma_new_page(const struct pma_policy *pol) {
 	assert(pol != NULL);
-	struct pma_page *np = pol->malloc(pol->region_size, pol->cb_data);
+	struct pma_page *np = pol->alloc(pol->region_size, pol->cb_data);
 	if (np) {
 #ifdef DEBUG
 		printf("Allocated new %d byte page @ %p\n", pol->region_size, np);
