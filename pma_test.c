@@ -42,18 +42,6 @@ void mmap_free(void *ptr, void *cb_data) {
 	munmap(ptr, data->alloc_len);
 }
 
-#define ALIGN_ADDR_PRESUB(addr,align) (((addr)+(align)) & ~((uintptr_t)align)) /* align is pow2-1 */
-
-uint16_t encode16(const struct pma_policy *pol, const struct pma_page *page, void *ptr) {
-	uintptr_t diff = (uintptr_t)ptr - (uintptr_t)page - ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
-	return diff >> pol->alignment;
-}
-
-void *decode16(const struct pma_policy *pol, const struct pma_page *page, uint16_t offset) {
-	uintptr_t ptr = (uintptr_t)page + ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
-	return (void*)(ptr + ((uintptr_t)offset << pol->alignment));
-}
-
 int main(int argc, char *argv[]) {
 	size_t page_size = sysconf(_SC_PAGE_SIZE);
 	int alignment = argc > 1 ? atoi(argv[1]) : 4;
@@ -109,16 +97,16 @@ int main(int argc, char *argv[]) {
 
 	char *a = pma_alloc(&pol, &mem, 51);
 	*a = 'A';
-	arr[idx++] = encode16(&pol, mem, a);
+	arr[idx++] = pma_page_encode_offset(&pol, mem, a);
 	a = pma_alloc(&pol, &mem, 123);
 	*a = 'B';
-	arr[idx++] = encode16(&pol, mem, a);
+	arr[idx++] = pma_page_encode_offset(&pol, mem, a);
 	a = pma_alloc(&pol, &mem, 1);
 	*a = 'C';
-	arr[idx++] = encode16(&pol, mem, a);
+	arr[idx++] = pma_page_encode_offset(&pol, mem, a);
 
 	for (int i=0 ; i < idx ; ++i) {
-		printf("%d @[%06d] = '%s'\n", i, arr[i], (char*)decode16(&pol, mem, arr[i]));
+		printf("%d @[%06d] = '%s'\n", i, arr[i], (char*)pma_page_decode_offset(&pol, mem, arr[i]));
 	}
 
 #if 0

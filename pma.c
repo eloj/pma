@@ -69,6 +69,16 @@ inline size_t pma_max_allocation_size(const struct pma_policy *pol) {
 	return pol->region_size - ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
 }
 
+uint32_t pma_page_encode_offset(const struct pma_policy *pol, const struct pma_page *page, void *ptr) {
+	uintptr_t diff = (uintptr_t)ptr - (uintptr_t)page - ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
+	return diff >> pol->alignment;
+}
+
+void *pma_page_decode_offset(const struct pma_policy *pol, const struct pma_page *page, uint32_t offset) {
+	uintptr_t ptr = (uintptr_t)page + ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
+	return (void*)(ptr + ((uintptr_t)offset << pol->alignment));
+}
+
 struct pma_page *pma_new_page(const struct pma_policy *pol) {
 	struct pma_page* np = pol->malloc(pol->region_size, pol->cb_data);
 	if (np) {
@@ -76,7 +86,7 @@ struct pma_page *pma_new_page(const struct pma_policy *pol) {
 		printf("Allocated new %d page @ %p\n", pol->region_size, np);
 #endif
 		np->next = NULL;
-		np->offset = ALIGN_ADDR_PRESUB(sizeof(struct pma_page), pol->alignment_mask);
+		np->offset = ALIGN_ADDR_PRESUB(pma_page_header_size(pol), pol->alignment_mask);
 	}
 	return np;
 }
