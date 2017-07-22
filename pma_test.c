@@ -75,18 +75,16 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	struct pma_policy *pol = &paged;
+	struct pma arena;
+	pma_init(&arena, &paged);
+	pma_alloc(&arena, 0);
 
-	struct pma_page *root = NULL;
-	pma_alloc(pol, &root, 0);
-	struct pma_page *mem = root;
-
-	printf("First page at %p\n", root);
+	printf("First page at %p\n", arena.root);
 	printf("Page header is %zu bytes, %zu bytes available (%zu bytes slack). Max allocation size is %zu bytes.\n",
-		pma_page_header_size(pol),
-		pma_page_avail(pol, mem),
-		pol->region_size - pma_page_avail(pol, mem) - pma_page_header_size(pol),
-		pma_max_allocation_size(pol)
+		pma_page_header_size(arena.policy),
+		pma_avail(&arena),
+		arena.policy->region_size - pma_avail(&arena) - pma_page_header_size(arena.policy),
+		pma_max_allocation_size(arena.policy)
 	);
 
 #define alloc_test(pol, page, len, c) { \
@@ -96,29 +94,33 @@ int main(int argc, char *argv[]) {
 }
 
 #if 0
-	printf("MAX 1 byte objs = %zu\n", pma_page_max_objects(pol, 1));
-	printf("MAX 8 byte objs = %zu\n", pma_page_max_objects(pol, 8));
-	printf("MAX 16 byte objs = %zu\n", pma_page_max_objects(pol, 16));
-	printf("MAX 64 byte objs = %zu\n", pma_page_max_objects(pol, 64));
-	printf("MAX 128 byte objs = %zu\n", pma_page_max_objects(pol, 128));
-	printf("MAX %zu byte objs = %zu\n", pma_max_allocation_size(pol), pma_page_max_objects(pol, pma_max_allocation_size(pol)));
-	printf("MAX %zu byte objs = %zu\n", pma_max_allocation_size(pol) + 1, pma_page_max_objects(pol, pma_max_allocation_size(pol) + 1));
+	printf("MAX 1 byte objs = %zu\n", pma_page_max_objects(arena.policy, 1));
+	printf("MAX 8 byte objs = %zu\n", pma_page_max_objects(arena.policy, 8));
+	printf("MAX 16 byte objs = %zu\n", pma_page_max_objects(arena.policy, 16));
+	printf("MAX 64 byte objs = %zu\n", pma_page_max_objects(arena.policy, 64));
+	printf("MAX 128 byte objs = %zu\n", pma_page_max_objects(arena.policy, 128));
+	printf("MAX %zu byte objs = %zu\n", pma_max_allocation_size(arena.policy), pma_page_max_objects(arena.policy, pma_max_allocation_size(arena.policy)));
+	printf("MAX %zu byte objs = %zu\n", pma_max_allocation_size(arena.policy) + 1, pma_page_max_objects(arena.policy, pma_max_allocation_size(arena.policy) + 1));
 #endif
 
 	int idx = 0;
 	uint16_t arr[128];
-	char *a;
 
-	a = pma_push_string(pol, &mem, "Hello", -1);
-	arr[idx++] = pma_page_encode_offset(pol, mem, a);
-	a = pma_push_string(pol, &mem, "World", -1);
-	arr[idx++] = pma_page_encode_offset(pol, mem, a);
-	a = pma_push_string(pol, &mem, "!!!!!", 1);
-	arr[idx++] = pma_page_encode_offset(pol, mem, a);
+	arr[idx++] = pma_page_encode_offset(&arena, pma_push_string(&arena, "Hello", -1));
+	arr[idx++] = pma_page_encode_offset(&arena, pma_push_string(&arena, "World", -1));
+	arr[idx++] = pma_page_encode_offset(&arena, pma_push_string(&arena, "!!!!!", 1));
 
 	for (int i=0 ; i < idx ; ++i) {
-		printf("%d @[%06d] = '%s'\n", i, arr[i], (char*)pma_page_decode_offset(pol, mem, arr[i]));
+		printf("%d @[%06d] = '%s'\n", i, arr[i], (char*)pma_page_decode_offset(&arena, arr[i]));
 	}
+
+	while (pma_avail(&arena) >= 16) {
+		pma_push_struct(&arena, "0123456789abcdef", 16);
+	}
+
+	pma_alloc(&arena, pma_max_allocation_size(arena.policy) - 16);
+	char *a = pma_push_string(&arena, "<eof>", -1);
+	printf(">>>%s\n", a);
 
 #if 0
 	alloc_test(pol, &mem, 64, 'a');
@@ -130,8 +132,6 @@ int main(int argc, char *argv[]) {
 	alloc_test(pol, &mem, 3, '3');
 	alloc_test(pol, &mem, 4, '4');
 	alloc_test(pol, &mem, pma_max_allocation_size(pol), 'z');
-
-	pma_debug_dump(pol, root, "test");
 #endif
 
 #if 0
@@ -142,7 +142,8 @@ int main(int argc, char *argv[]) {
 	free(line);
 #endif
 
-	pma_free(&paged, root);
+	pma_debug_dump(&arena, "test");
+	pma_free(&arena);
 	// pma_free(&backing, backing_root);
 
 	return 0;

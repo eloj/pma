@@ -14,6 +14,7 @@
 		Handle alignment for you.
 
 	TODO:
+ 		* mark/restore for temp work. (problematic when arenas linked)
 		* Allow nesting (a pma allocator on top of a pma_allocator with a different configuration)
 		* How to handle NULL in indexed encoding (pre-add 1 to offsets returned to free up 0, or just leave it to application)
 		* Can VALGRIND client macros be moved into allocator cb's and still work well?
@@ -32,6 +33,12 @@
 
 struct pma_page;
 
+struct pma {
+	const struct pma_policy *policy;
+	struct pma_page *root;
+	struct pma_page *curr;
+};
+
 enum pma_flags {
 	PMA_ALLOC_INITIALIZED = 1
 };
@@ -48,19 +55,20 @@ struct pma_policy {
 };
 
 int pma_init_policy(struct pma_policy *pol, uint32_t region_size, uint8_t pow2_alignment);
-void pma_free(const struct pma_policy *pol, struct pma_page *p);
+void pma_init(struct pma *pma, const struct pma_policy *pol);
+void pma_free(struct pma *pma);
 
-size_t pma_page_avail(const struct pma_policy *pol, struct pma_page *p);
+size_t pma_avail(const struct pma *pma);
 size_t pma_page_header_size(const struct pma_policy *pol) __attribute__((pure));
 size_t pma_page_max_objects(const struct pma_policy *pol, size_t size) __attribute__((pure));
 size_t pma_max_allocation_size(const struct pma_policy *pol) __attribute__((pure));
 
-uint32_t pma_page_encode_offset(const struct pma_policy *pol, const struct pma_page *page, void *ptr);
-void *pma_page_decode_offset(const struct pma_policy *pol, const struct pma_page *page, uint32_t offset);
+uint32_t pma_page_encode_offset(const struct pma *pma, void *ptr);
+void *pma_page_decode_offset(const struct pma *pma, uint32_t offset);
 
-void *pma_alloc(const struct pma_policy *pol, struct pma_page **p, size_t size) __attribute__((alloc_size(3)));
-void *pma_push_string(const struct pma_policy *pol, struct pma_page **p, const char *str, ssize_t len);
-void *pma_push_struct(const struct pma_policy *pol, struct pma_page **p, void *mem, size_t len);
+void *pma_alloc(struct pma *pma, size_t size) __attribute__((alloc_size(2)));
+void *pma_push_string(struct pma *pma, const char *str, ssize_t len);
+void *pma_push_struct(struct pma *pma, void *mem, size_t len);
 
-void pma_debug_dump(const struct pma_policy *pol, struct pma_page *p, const char *basename);
+void pma_debug_dump(const struct pma *pma, const char *basename);
 
