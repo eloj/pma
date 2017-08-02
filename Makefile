@@ -41,7 +41,7 @@ else
 endif
 
 ifndef NOVALGRIND
-	CFLAGS+=-DUSE_VALGRIND
+	CFLAGS+=-DUSE_VALGRIND -I$$HOME/local/include
 endif
 
 ifndef NODEBUG

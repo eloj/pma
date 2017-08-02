@@ -8,7 +8,7 @@
 // such as standard heap allocations, but should be used in other cases, such as when the backing is mmap'ed.
 // If you're using both, know that standard heap allocations will be double-counted.
 #ifdef USE_VALGRIND
-#include <valgrind/memcheck.h>
+#include "valgrind/memcheck.h"
 #endif
 #endif
 
@@ -135,7 +135,7 @@ void *pma_alloc_onpage(const struct pma_policy *pol, struct pma_page *p, uint32_
 	void *retval = NULL;
 	if (pol->region_size - p->offset >= size) {
 		#ifdef DEBUG
-			printf("Sub-allocating %d bytes starting at offset %d of page @ %p\n", size, p->offset, p);
+		// printf("Sub-allocating %d bytes starting at offset %d of page @ %p\n", size, p->offset, p);
 		#endif
 		retval = ((char*)p) + p->offset;
 		p->offset = ALIGN_ADDR_PRESUB(p->offset + size, pol->alignment_mask);
@@ -172,10 +172,13 @@ void *pma_alloc(struct pma *pma, size_t size) {
 }
 
 void *pma_push_string(struct pma *pma, const char *str, ssize_t len) {
+	char *s = NULL;
+	size_t alen;
+
 	if (len < 0)
 		len = strlen(str);
-	char *s = pma_alloc(pma, len + 1);
-	if (s) {
+
+	if (!__builtin_add_overflow(len, 1, &alen) && ((s = pma_alloc(pma, alen)) != NULL)) {
 		memcpy(s, str, len);
 		s[len] = 0;
 	}
