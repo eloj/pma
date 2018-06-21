@@ -118,9 +118,29 @@ int main(int argc, char *argv[]) {
 		pma_push_struct(&arena, "0123456789abcdef", 16);
 	}
 
-	pma_alloc(&arena, pma_max_allocation_size(arena.policy) - 16);
-	char *a = pma_push_string(&arena, "<eof>", -1);
-	printf(">>>%s\n", a);
+#define ALIGNED_SIZE(size, alignment) \
+	(size + ((~(size) + 1) & ((1L << (alignment))-1)))
+
+	/*
+		Demonstrate adding data to the end of a page.
+
+		It's important to understand that the end of the string won't generally
+		touch the end of the page exactly, since the start of the string must
+		adhere to our alignment requirement.
+	*/
+	const char *tail_string = "<a string at the end of the page>";
+	size_t tail_string_len = strlen(tail_string);
+	size_t reserve = ALIGNED_SIZE(tail_string_len + 1, alignment); // account for zt
+
+	printf("Aligned to %d, '%s' takes %zu bytes (%zu bytes slack).\n", alignment, tail_string, reserve, reserve - (tail_string_len + 1));
+
+	pma_alloc(&arena, pma_max_allocation_size(arena.policy) - reserve);
+
+	char *a1 = pma_push_string(&arena, tail_string, tail_string_len);
+	uint16_t end_idx = pma_page_encode_offset(&arena, a1);
+	char *a2 = pma_page_decode_offset(&arena, end_idx);
+	assert(a1 == a2); // verify that decoded address matches original.
+	printf(">>>@[%06d] = '%s' == '%s'\n", end_idx, a1, a2);
 
 #if 0
 	alloc_test(pol, &mem, 64, 'a');
