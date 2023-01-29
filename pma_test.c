@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 
 	int alignment = argc > 1 ? atoi(argv[1]) : 4;
 
-	printf("arg1 alignment=%d\n", alignment);
+	printf("arg1 alignment=%d (%zu bytes)\n", alignment, (1UL << alignment));
 
 	printf("HW page size=%zu\n", page_size);
 
