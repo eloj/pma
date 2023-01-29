@@ -29,7 +29,7 @@ struct pma_page {
 	struct pma_page* next;
 	uint32_t offset;
 	// uint8_t aux[];
-} __attribute__((packed));
+}; // __attribute__((packed));
 
 void pma_init(struct pma *pma, const struct pma_policy *pol) {
 	pma->policy = pol;
@@ -84,7 +84,8 @@ inline size_t pma_avail(const struct pma *pma) {
 }
 
 inline size_t pma_page_header_size(const struct pma_policy *pol) {
-	return sizeof(struct pma_page); // + pol->aux_size;
+	(void)pol;
+	return sizeof(struct pma_page);
 }
 
 inline size_t pma_page_max_objects(const struct pma_policy *pol, size_t size) {

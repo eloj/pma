@@ -48,7 +48,6 @@ struct pma_policy {
 	uint16_t alignment;
 	uint16_t alignment_mask;
 	enum pma_flags flags;
-	// uint32_t aux_size; /* XXX: size of auxillary base allocator in-page data */
 	void* (*alloc)(size_t size, void *cb_data);
 	void  (*free)(void *ptr, void *cb_data);
 	void* cb_data;

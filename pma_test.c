@@ -44,7 +44,6 @@ void mmap_free(void *ptr, void *cb_data) {
 
 int main(int argc, char *argv[]) {
 	size_t page_size = sysconf(_SC_PAGE_SIZE);
-	size_t backing_block_size = 2048*1024;
 
 	int alignment = argc > 1 ? atoi(argv[1]) : 4;
 
@@ -53,6 +52,7 @@ int main(int argc, char *argv[]) {
 	printf("HW page size=%zu\n", page_size);
 
 #if 0
+	size_t backing_block_size = 2048*1024;
 	struct mmap_policy_data backing_cbdata = {
 		backing_block_size,
 		MAP_NORESERVE | MAP_HUGETLB // | MAP_HUGE_2MB
